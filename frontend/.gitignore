@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+/.pnpm-store
+
+# TanStack Specific Caches
+.tanstack/
+.vinxi/
+
+# Production Build Outputs
+/dist
+/build
+/.output
+/.vercel
+/.netlify
+
+# Logs and Caches
+*.log
+logs
+*.atlassian
+.eslintcache
+.cache/
+.vite
+*.tsbuildinfo
+
+# Local Environment Variables
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# System / OS files
+.DS_Store
+Thumbs.db
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+*.devcontainer
+

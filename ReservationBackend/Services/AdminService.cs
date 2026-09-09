@@ -45,12 +45,15 @@ public sealed class AdminService
 
     public async Task<SlotDto> CreateSlotAsync(CreateSlotRequest request, CancellationToken ct)
     {
-        await using var connection = await _database.CreateOpenConnectionAsync(ct);
+        // Do not tie the DB write to the client's request-abort token: if the client
+        // disconnects before the response completes, ASP.NET cancels that token and
+        // aborts the insert. The slot should still be persisted.
+        await using var connection = await _database.CreateOpenConnectionAsync(CancellationToken.None);
 
         var serviceName = await connection.ExecuteScalarAsync<string>(new CommandDefinition(
             "SELECT Name FROM Services WHERE Id = @ServiceId AND IsDeleted = 0;",
             new { request.ServiceId },
-            cancellationToken: ct));
+            cancellationToken: CancellationToken.None));
 
         if (serviceName is null)
             throw new ReservationApiException(
@@ -68,8 +71,8 @@ public sealed class AdminService
         {
             await connection.ExecuteAsync(new CommandDefinition(
                 sql,
-                new { Id = slotId, request.ServiceId, request.StartTime },
-                cancellationToken: ct));
+                new { Id = slotId, request.ServiceId, SlotStartTime = request.StartTime },
+                cancellationToken: CancellationToken.None));
         }
         catch (MySqlException ex) when (ex.Number == 1062)
         {

@@ -1,5 +1,6 @@
 using ReservationBackend.Contracts;
 using ReservationBackend.Services;
+using ReservationBackend.Validation;
 
 namespace ReservationBackend.Endpoints;
 
@@ -13,8 +14,10 @@ public static class AdminEndpoints
         group.MapPost("/services",
             async Task<IResult> (CreateServiceRequest request, AdminService admin, CancellationToken ct) =>
             {
-                var validation = ValidateCreateService(request);
-                if (validation is not null) return validation;
+                var error = Validators.ValidateServiceName(request.Name)
+                            ?? Validators.ValidateServiceDuration(request.DurationMinutes);
+                if (error is not null)
+                    return TypedResults.BadRequest(new ApiError(error.Value.Code, error.Value.Message));
 
                 var service = await admin.CreateServiceAsync(request, ct);
                 return TypedResults.Created($"/admin/services/{service.Id}", service);
@@ -26,13 +29,14 @@ public static class AdminEndpoints
         group.MapPost("/slots",
             async Task<IResult> (CreateSlotRequest request, AdminService admin, CancellationToken ct) =>
             {
-                if (request.ServiceId == Guid.Empty)
-                    return TypedResults.BadRequest(new ApiError("service_id_required", "ServiceId must be specified."));
+                var error = Validators.ValidateSlotServiceId(request.ServiceId);
+                if (error is not null)
+                    return TypedResults.BadRequest(new ApiError(error.Value.Code, error.Value.Message));
 
-                var startTime = NormalizeToUtc(request.StartTime);
-                if (startTime <= DateTime.UtcNow)
-                    return TypedResults.BadRequest(new ApiError("slot_start_in_past",
-                        "The slot start time must be in the future."));
+                var startTime = EnsureUtc(request.StartTime);
+                error = Validators.ValidateSlotStartTime(startTime);
+                if (error is not null)
+                    return TypedResults.BadRequest(new ApiError(error.Value.Code, error.Value.Message));
 
                 var slot = await admin.CreateSlotAsync(new CreateSlotRequest(request.ServiceId, startTime), ct);
                 return TypedResults.Created($"/admin/slots/{slot.Id}", slot);
@@ -60,22 +64,9 @@ public static class AdminEndpoints
         return app;
     }
 
-    private static IResult? ValidateCreateService(CreateServiceRequest request)
-    {
-        if (string.IsNullOrWhiteSpace(request.Name))
-            return TypedResults.BadRequest(new ApiError("service_name_required", "Service name must not be empty."));
-
-        if (request.DurationMinutes <= 0)
-            return TypedResults.BadRequest(new ApiError("service_duration_invalid",
-                "Service duration must be greater than zero."));
-
-        return null;
-    }
-
-    private static DateTime NormalizeToUtc(DateTime value) =>
+    private static DateTime EnsureUtc(DateTime value) =>
         value.Kind switch
         {
-            DateTimeKind.Local => value.ToUniversalTime(),
             DateTimeKind.Unspecified => DateTime.SpecifyKind(value, DateTimeKind.Utc),
             _ => value
         };

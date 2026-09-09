@@ -1,0 +1,10 @@
+node_modules
+dist
+.tanstack
+.devcontainer
+.git
+.gitignore
+.prettierignore
+README.md
+*.log
+pnpm-debug.log*

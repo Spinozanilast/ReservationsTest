@@ -1,6 +1,8 @@
 <Solution>
   <Folder Name="/Solution Items/">
     <File Path="compose.yaml" />
+    <File Path="ReservationBackend.Test\tests.log" />
   </Folder>
+  <Project Path="ReservationBackend.Test/ReservationBackend.Test.csproj" />
   <Project Path="ReservationBackend/ReservationBackend.csproj" />
 </Solution>

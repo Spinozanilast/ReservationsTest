@@ -1,5 +1,6 @@
 using ReservationBackend.Contracts;
 using ReservationBackend.Services;
+using ReservationBackend.Validation;
 
 namespace ReservationBackend.Endpoints;
 
@@ -15,8 +16,9 @@ public static class ClientEndpoints
 
         group.MapGet("/slots/available", async Task<IResult> (Guid serviceId, DateOnly date, BookingService booking, CancellationToken ct) =>
         {
-            if (serviceId == Guid.Empty)
-                return TypedResults.BadRequest(new ApiError("service_id_required", "ServiceId must be specified."));
+            var error = Validators.ValidateSlotServiceId(serviceId);
+            if (error is not null)
+                return TypedResults.BadRequest(new ApiError(error.Value.Code, error.Value.Message));
 
             if (date < DateOnly.FromDateTime(DateTime.UtcNow))
                 return TypedResults.BadRequest(new ApiError("date_in_past", "The selected date cannot be in the past."));
@@ -26,16 +28,18 @@ public static class ClientEndpoints
 
         group.MapPost("/reservations", async Task<IResult> (CreateReservationRequest request, BookingService booking, CancellationToken ct) =>
         {
-            if (request.SlotId == Guid.Empty)
-                return TypedResults.BadRequest(new ApiError("slot_id_required", "SlotId must be specified."));
+            var error = Validators.ValidateSlotId(request.SlotId);
+            if (error is not null)
+                return TypedResults.BadRequest(new ApiError(error.Value.Code, error.Value.Message));
 
-            if (string.IsNullOrWhiteSpace(request.Name))
-                return TypedResults.BadRequest(new ApiError("client_name_required", "Name must not be empty."));
+            error = Validators.ValidateClientName(request.Name);
+            if (error is not null)
+                return TypedResults.BadRequest(new ApiError(error.Value.Code, error.Value.Message));
 
-            var phoneNumber = NormalizePhoneNumber(request.PhoneNumber);
+            var phoneNumber = Validators.NormalizePhoneNumber(request.PhoneNumber);
             if (phoneNumber is null)
                 return TypedResults.BadRequest(new ApiError(
-                    "phone_number_invalid",
+                    Validators.PhoneNumberInvalidCode,
                     "Phone number is required and must contain 7-15 digits with an optional leading '+', e.g. +375291234567."));
 
             var reservation = await booking.CreateReservationAsync(
@@ -48,29 +52,5 @@ public static class ClientEndpoints
         });
 
         return app;
-    }
-
-    private static string? NormalizePhoneNumber(string? phone)
-    {
-        if (string.IsNullOrWhiteSpace(phone))
-            return null;
-
-        var trimmed = phone.Trim();
-        foreach (var ch in trimmed)
-        {
-            if (char.IsAsciiDigit(ch) || ch is '+' or '-' or '(' or ')' or ' ')
-                continue;
-            return null;
-        }
-
-        var plusCount = trimmed.Count(ch => ch == '+');
-        if (plusCount > 1 || (plusCount == 1 && !trimmed.StartsWith('+')))
-            return null;
-
-        var digits = new string(trimmed.Where(char.IsDigit).ToArray());
-        if (digits.Length is < 7 or > 15)
-            return null;
-
-        return plusCount == 1 ? $"+{digits}" : digits;
     }
 }
